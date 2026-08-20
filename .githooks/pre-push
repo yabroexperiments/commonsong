@@ -1,0 +1,74 @@
+#!/bin/sh
+# ---------------------------------------------------------------------------
+# pre-push secret guard  (tracked at .githooks/pre-push)
+#
+# Blocks a push when the outgoing commits ADD a credential-shaped string or a
+# secret-bearing filename. All detection logic lives in .githooks/secret-scan.sh,
+# shared with .github/workflows/secret-scan.yml so client and server can never
+# silently disagree.
+#
+# Enabled per-clone via ./setup.sh  ->  git config core.hooksPath .githooks
+#
+# IMPORTANT: this is CLIENT-SIDE and per-clone. `core.hooksPath` lives in
+# .git/config and is never committed, so a FRESH CLONE (Codex Web, a cloud
+# session, a new machine) gets this file but does NOT run it. The server-side
+# workflow is what covers those. Verified empirically 2026-08-06.
+#
+# Escape hatch:  git push --no-verify
+# Repo-local exceptions: .githooks/secret-allowlist.txt (one ERE per line)
+# ---------------------------------------------------------------------------
+
+Z40="0000000000000000000000000000000000000000"
+SCAN="$(git rev-parse --show-toplevel)/.githooks/secret-scan.sh"
+found=0
+
+if [ ! -x "$SCAN" ]; then
+    echo "✗ pre-push: .githooks/secret-scan.sh missing or not executable."
+    echo "  Reinstall:  yabro-hq/scripts/install-secret-guard.sh --repo ."
+    exit 1
+fi
+
+while read -r local_ref local_sha remote_ref remote_sha; do
+    [ "$local_sha" = "$Z40" ] && continue            # branch deletion
+
+    if [ "$remote_sha" = "$Z40" ]; then
+        # New branch: scan only commits not already on some remote, so a fresh
+        # branch does not re-litigate the entire history.
+        oldest=$(git rev-list "$local_sha" --not --remotes 2>/dev/null | tail -1)
+        [ -z "$oldest" ] && continue
+        base="${oldest}^"
+        git rev-parse --verify -q "$base" >/dev/null 2>&1 || \
+            base=$(git hash-object -t tree /dev/null)
+    else
+        base="$remote_sha"
+    fi
+
+    out=$("$SCAN" "$base" "$local_sha" 2>&1)
+    rc=$?
+    if [ "$rc" -ne 0 ]; then
+        echo "$out" | sed "s|^✗ secret-scan:|✗ pre-push BLOCKED ($local_ref) —|"
+        found=1
+    else
+        echo "$out" | sed 's|^✓ secret-scan:|✓ pre-push secret guard:|'
+    fi
+done
+
+if [ "$found" -ne 0 ]; then
+    cat <<'EOF'
+
+  ── How to proceed ────────────────────────────────────────────────
+  A pushed secret cannot be fully erased: GitHub keeps old commits
+  reachable by SHA even after a force-push. Rotation is the only real
+  remedy — so fix it BEFORE it leaves this machine.
+
+    1. Remove the value; read it from env instead (src/lib/config.ts).
+    2. Rewrite the offending commit:  git commit --amend    (or rebase)
+    3. If it is a genuine false positive, add an ERE for it to
+       .githooks/secret-allowlist.txt  — with a comment saying why.
+
+  Deliberate override:  git push --no-verify
+  ──────────────────────────────────────────────────────────────────
+EOF
+    exit 1
+fi
+exit 0
