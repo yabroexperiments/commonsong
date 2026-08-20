@@ -31,8 +31,10 @@ export interface ElevenEngineOptions {
   apiKey: string;
   /** Store generated audio bytes, return a fetchable URL. */
   hostAudio: (fileName: string, buf: Buffer, contentType: string) => Promise<string>;
-  /** Opt-in exemplar conditioning — see the verbatim-safety warning above. */
-  conditioning?: boolean;
+  /** Opt-in exemplar conditioning — see the verbatim-safety warning above.
+   *  A function is evaluated per generate() call, so consumers can wire a
+   *  runtime settings toggle instead of a deploy-time constant. */
+  conditioning?: boolean | (() => boolean | Promise<boolean>);
 }
 
 function randomHex(bytes: number): string {
@@ -46,7 +48,10 @@ export function createElevenEngine(opts: ElevenEngineOptions): SongEngine {
     id: "eleven",
     async generate({ lyrics, stylePrompt, elevenSongId }): Promise<EngineTake[]> {
       if (!opts.apiKey) throw new Error("eleven engine created without an apiKey");
-      const conditioningOn = opts.conditioning === true;
+      const conditioningOn =
+        typeof opts.conditioning === "function"
+          ? (await opts.conditioning()) === true
+          : opts.conditioning === true;
       if (elevenSongId && !conditioningOn) {
         console.log(
           `[eleven] exemplar ${elevenSongId} available but conditioning is OFF (verbatim-unsafe)`
