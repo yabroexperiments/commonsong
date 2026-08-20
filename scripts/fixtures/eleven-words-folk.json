@@ -1,0 +1,62 @@
+[
+ {
+  "word": "大嫂我在開發一個唱歌的工具",
+  "start_ms": 799,
+  "end_ms": 7279
+ },
+ {
+  "word": "把簡訊輸入之後",
+  "start_ms": 8139,
+  "end_ms": 12500
+ },
+ {
+  "word": "選一個曲風",
+  "start_ms": 12859,
+  "end_ms": 14939
+ },
+ {
+  "word": "他就會幫你做曲唱給你聽",
+  "start_ms": 15899,
+  "end_ms": 22200
+ },
+ {
+  "word": "可以幫忙試用一下",
+  "start_ms": 22340,
+  "end_ms": 26839
+ },
+ {
+  "word": "給些建議嗎",
+  "start_ms": 27680,
+  "end_ms": 31259
+ },
+ {
+  "word": "謝謝",
+  "start_ms": 31959,
+  "end_ms": 33680
+ },
+ {
+  "word": "{cold",
+  "start_ms": 33659,
+  "end_ms": 33680
+ },
+ {
+  "word": "ending,",
+  "start_ms": 33680,
+  "end_ms": 33759
+ },
+ {
+  "word": "no",
+  "start_ms": 33759,
+  "end_ms": 33779
+ },
+ {
+  "word": "instrumental",
+  "start_ms": 33840,
+  "end_ms": 35260
+ },
+ {
+  "word": "tail}",
+  "start_ms": 35279,
+  "end_ms": 35380
+ }
+]
