@@ -26,6 +26,14 @@ export interface EngineTake {
    *  Null when the engine provides none. Callers should treat these as the
    *  engine's CLAIM about timing, not ground truth. */
   timings?: unknown | null;
+  /** The vendor's own id for this song, when it has one. Mureka needs it for
+   *  song/extend and its other follow-up endpoints (only honoured for ~a
+   *  month after generation). Absent on engines that mint no such id. */
+  vendorSongId?: string | null;
+  /** Lossless masters of the same take, when the vendor offers them. Mureka:
+   *  same ~30-day expiry as `audioUrl` — download before it lapses. A format
+   *  the vendor did not return is simply absent, never an invented URL. */
+  losslessUrls?: { flac?: string; wav?: string } | null;
 }
 
 export interface SongGenerateInput {

@@ -50,6 +50,7 @@ interface MurekaTask {
     id: string;
     url: string;
     flac_url?: string;
+    wav_url?: string;
     duration?: number; // milliseconds
     lyrics_sections?: MurekaLyricsSection[];
   }>;
@@ -58,7 +59,7 @@ interface MurekaTask {
 /** Mureka pricing page 2026-08-11 — flat per song; re-verify against a live bill. */
 const COST_PER_SONG_USD = 0.045;
 const POLL_INTERVAL_MS = 3000;
-const MAX_POLL_ATTEMPTS = 60; // hard bound: 60 × 3s = 3min, then fail loudly
+const DEFAULT_MAX_POLL_ATTEMPTS = 60; // hard bound: 60 × 3s = 3min, then fail loudly
 const CONCURRENCY_RETRY_ATTEMPTS = 10;
 const CONCURRENCY_RETRY_WAIT_MS = 8_000; // one in-flight call runs ~40-80s
 
@@ -70,11 +71,22 @@ export interface MurekaEngineOptions {
   takesPerCall?: number;
   /** Model when the caller passes none. Default "auto". */
   defaultModel?: string;
+  /** Poll bound, in 3s attempts. Default 60 (3 min) — sized for the ~40-80s a
+   *  short message song takes. A consumer generating full-length tracks can
+   *  raise it; a task still running when the bound hits has already been
+   *  BILLED, so size it under the caller's own function timeout, not over. */
+  maxPollAttempts?: number;
 }
 
 export function createMurekaEngine(opts: MurekaEngineOptions): SongEngine {
   const baseUrl = opts.baseUrl || "https://api.mureka.ai";
   const takesPerCall = opts.takesPerCall ?? 1;
+  // A zero/negative/NaN bound would skip the loop and abandon a billed task
+  // on the first call — fall back to the default instead.
+  const maxPollAttempts =
+    Number.isInteger(opts.maxPollAttempts) && (opts.maxPollAttempts as number) > 0
+      ? (opts.maxPollAttempts as number)
+      : DEFAULT_MAX_POLL_ATTEMPTS;
 
   async function murekaFetch<T>(path: string, init?: RequestInit): Promise<T> {
     const res = await fetch(`${baseUrl}${path}`, {
@@ -126,7 +138,7 @@ export function createMurekaEngine(opts: MurekaEngineOptions): SongEngine {
         })
       );
 
-      for (let attempt = 1; attempt <= MAX_POLL_ATTEMPTS; attempt++) {
+      for (let attempt = 1; attempt <= maxPollAttempts; attempt++) {
         await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
         const status = await murekaFetch<MurekaTask>(`/v1/song/query/${task.id}`);
 
@@ -145,6 +157,11 @@ export function createMurekaEngine(opts: MurekaEngineOptions): SongEngine {
             costUsd: COST_PER_SONG_USD,
             model: status.model,
             timings: c.lyrics_sections ?? null,
+            vendorSongId: c.id ?? null,
+            losslessUrls:
+              c.flac_url || c.wav_url
+                ? { ...(c.flac_url ? { flac: c.flac_url } : {}), ...(c.wav_url ? { wav: c.wav_url } : {}) }
+                : null,
           }));
         }
         if (
@@ -158,7 +175,7 @@ export function createMurekaEngine(opts: MurekaEngineOptions): SongEngine {
         }
       }
       throw new Error(
-        `Mureka task ${task.id} still not finished after ${MAX_POLL_ATTEMPTS} polls — aborting (attempts bound)`
+        `Mureka task ${task.id} still not finished after ${maxPollAttempts} polls — aborting (attempts bound)`
       );
     },
   };

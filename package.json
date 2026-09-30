@@ -22,7 +22,7 @@
     "prepare": "tsc",
     "clean": "rm -rf dist",
     "typecheck": "tsc --noEmit",
-    "test": "node --experimental-strip-types scripts/test-eleven-offline.mjs"
+    "test": "node --experimental-strip-types scripts/test-eleven-offline.mjs && node --experimental-strip-types scripts/test-mureka-offline.mjs"
   },
   "engines": {
     "node": ">=18"
